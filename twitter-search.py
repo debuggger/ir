@@ -12,9 +12,17 @@ class FileStore:
 		self.filename = filename
 		
 	def store(self, data):
-		with codecs.open(self.filename, 'wb', encoding="ISO-8859-1") as fileHandle:
+		with codecs.open(self.filename, 'ab', encoding="ISO-8859-1") as fileHandle:
 			cPickle.dump(data, fileHandle, -1)
-		
+			
+	def deduplicate(self, data):
+		uniqueTweets = {}
+		for tweet in data:
+			if not uniqueTweets.has_key(tweet['id']):
+				uniqueTweets[tweet['id']] = tweet
+			
+		return uniqueTweets.values()
+			
 	def load(self):
 		data = []
 		with codecs.open(self.filename, 'rb', encoding="ISO-8859-1") as fileHandle:
@@ -23,9 +31,8 @@ class FileStore:
 					data.append(cPickle.load(fileHandle))
 				except:
 					break
-				
-		print data
-				
+		data = self.deduplicate(data)
+		
 		return data		
 
 
@@ -63,13 +70,16 @@ if __name__ == "__main__":
 	
 	response = twitterAPI.search('game of thrones')
 	
-	#pprint.pprint(response)
-	
 	for i in response:
 		fileStore.store(i)
 	
 	data = fileStore.load()
 
 	for i in data:
-		pprint.pprint(i)
-	
+		try:
+			print i['text']
+		except:
+			print("=================")
+			print (i)
+			print("=================")
+	print(len(data))		
