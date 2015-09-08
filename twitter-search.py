@@ -3,6 +3,7 @@ from twython import Twython
 import pprint
 import sys
 import cPickle
+import json
 
 CUST_KEY = 'cXCAkr4c56LTDr6alRqLk03pt'
 CUST_SECRET = 'KCTBzcUkq4EJIWaopdXAygPHpRxuDMwZCMlg9v8J4aLFz1Uhqe'
@@ -11,9 +12,45 @@ class FileStore:
 	def __init__(self, filename):
 		self.filename = filename
 		
+	def storeTweet(self, data):	
+		data = self.deduplicate(data)
+	
+		with codecs.open(self.filename+'_tweets'+'.txt', 'a', encoding="utf8") as fileHandle:
+			for tweet in data:
+				fileHandle.write(tweet['text']+'\n')
+			
+	def jsonLoad(self):
+		data = []
+		
+		try:
+			with codecs.open(self.filename+'.json', 'r', encoding="ISO-8859-1") as fileHandle:
+				try: 
+					data = json.load(fileHandle)
+				except:
+					pass
+		except:
+			pass
+					
+		return data
+				
+	def jsonStore(self, data):
+		storedJson = self.jsonLoad()
+		data = data + storedJson
+		
+		with codecs.open(self.filename+'.json', 'w', encoding="ISO-8859-1") as fileHandle:
+			json.dump(data, fileHandle)
+		
+	
 	def store(self, data):
-		with codecs.open(self.filename, 'ab', encoding="ISO-8859-1") as fileHandle:
-			cPickle.dump(data, fileHandle, -1)
+		storedData = self.load()
+		data = self.deduplicate(data + storedData)
+		
+		self.jsonStore(data)
+		self.storeTweet(data)
+		
+		for tweet in data:
+			with codecs.open(self.filename+'.dat', 'ab', encoding="ISO-8859-1") as fileHandle:
+				cPickle.dump(tweet, fileHandle, -1)
 			
 	def deduplicate(self, data):
 		uniqueTweets = {}
@@ -25,13 +62,17 @@ class FileStore:
 			
 	def load(self):
 		data = []
-		with codecs.open(self.filename, 'rb', encoding="ISO-8859-1") as fileHandle:
-			while True:
-				try:
-					data.append(cPickle.load(fileHandle))
-				except:
-					break
-		data = self.deduplicate(data)
+		try:
+			with codecs.open(self.filename+'.dat', 'rb', encoding="ISO-8859-1") as fileHandle:
+				while True:
+					try:
+						data.append(cPickle.load(fileHandle))
+					except:
+						break
+			data = self.deduplicate(data)
+	
+		except:
+			pass
 		
 		return data		
 
@@ -64,14 +105,23 @@ class TwitterAPI:
 if __name__ == "__main__":
 	reload(sys)
 	sys.setdefaultencoding('ISO-8859-1')
-
+	
+	if(len(sys.argv) >= 4):
+		persistentFileStore = sys.argv[1]
+		searchTerm = sys.argv[2]
+		language = sys.argv[3]
+	elif(len(sys.argv) == 3):
+		language = 'en'
+	else:
+		print("Insufficent arguments")
+		exit()
+	
 	twitterAPI = TwitterAPI()
-	fileStore = FileStore('twitter-search-results.dat')
+	fileStore = FileStore(persistentFileStore)
 	
-	response = twitterAPI.search('game of thrones')
+	response = twitterAPI.search(searchTerm, language)
 	
-	for i in response:
-		fileStore.store(i)
+	fileStore.store(response)
 	
 	data = fileStore.load()
 
@@ -79,7 +129,6 @@ if __name__ == "__main__":
 		try:
 			print i['text']
 		except:
-			print("=================")
-			print (i)
-			print("=================")
+			pprint.pprint(i)
+
 	print(len(data))		
