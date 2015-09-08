@@ -97,10 +97,10 @@ class TwitterAPI:
 		
 		
 	def search(self, keyword, language='en'):
-		apiResponse = self.apiHandle.search(q=keyword, lang=language)
-		response = [self.filter(tweet) for tweet in apiResponse['statuses']]
+		apiResponse = self.apiHandle.search(q=keyword, lang=language, count=100)
+		#response = [self.filter(tweet) for tweet in apiResponse['statuses']]
 		
-		return response
+		return apiResponse['statuses']
 
 if __name__ == "__main__":
 	reload(sys)
