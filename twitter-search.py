@@ -9,15 +9,35 @@ CUST_KEY = 'cXCAkr4c56LTDr6alRqLk03pt'
 CUST_SECRET = 'KCTBzcUkq4EJIWaopdXAygPHpRxuDMwZCMlg9v8J4aLFz1Uhqe'
 
 class FileStore:
+	filterKeys =  {'coordinates': u'[\'coordinates\']', 'created_at': u'[\'created_at\']', 'favorite_count': u'[\'favorite_count\']' , 'id': u'[\'id\']', 'lang': u'[\'lang\']', 'text': u'[\'text\']', 'user_followers_count': u'[\'user\'][\'followers_count\']', 'retweet_count': u'[\'retweet_count\']'}
+
+	
+
 	def __init__(self, filename):
 		self.filename = filename
-		
-	def storeTweet(self, data):	
-		data = self.deduplicate(data)
 	
-		with codecs.open(self.filename+'_tweets'+'.txt', 'a', encoding="utf8") as fileHandle:
+		
+	def filter(self, tweet):
+		filteredTweet = {}
+			
+		for key in FileStore.filterKeys:
+			try:
+				filteredTweet[key] = eval('tweet' + FileStore.filterKeys[key])
+			except:
+				print '==tweet' + FileStore.filterKeys[key]
+			
+		return filteredTweet
+	
+	def storeFilteredData(self, data):
+		with codecs.open(self.filename+'_tweets_filtered'+'.json', 'w', encoding="utf8") as fileHandle:
+			json.dump([self.filter(tweetData) for tweetData in data], fileHandle)
+		fileHandle.close()	
+	
+	def storeTweet(self, data):	
+		with codecs.open(self.filename+'_tweets'+'.txt', 'w', encoding="utf8") as fileHandle:
 			for tweet in data:
-				fileHandle.write(tweet['text']+'\n')
+				fileHandle.write(str(tweet["id"])+'--->'+tweet['text']+'\n')
+		fileHandle.close()
 			
 	def jsonLoad(self):
 		data = []
@@ -35,22 +55,18 @@ class FileStore:
 				
 	def jsonStore(self, data):
 		storedJson = self.jsonLoad()
-		data = data + storedJson
+		uniqueTweets = self.deduplicate(data + storedJson)
 		
 		with codecs.open(self.filename+'.json', 'w', encoding="ISO-8859-1") as fileHandle:
-			json.dump(data, fileHandle)
+			json.dump(uniqueTweets, fileHandle)
+		fileHandle.close()
 		
+		self.storeTweet(uniqueTweets)
+		self.storeFilteredData(uniqueTweets)
 	
 	def store(self, data):
-		storedData = self.load()
-		data = self.deduplicate(data + storedData)
-		
 		self.jsonStore(data)
-		self.storeTweet(data)
 		
-		for tweet in data:
-			with codecs.open(self.filename+'.dat', 'ab', encoding="ISO-8859-1") as fileHandle:
-				cPickle.dump(tweet, fileHandle, -1)
 			
 	def deduplicate(self, data):
 		uniqueTweets = {}
@@ -69,8 +85,7 @@ class FileStore:
 						data.append(cPickle.load(fileHandle))
 					except:
 						break
-			data = self.deduplicate(data)
-	
+
 		except:
 			pass
 		
@@ -78,26 +93,13 @@ class FileStore:
 
 
 class TwitterAPI:
-	filterKeys =  {'coordinates': u'[\'coordinates\']', 'created_at': u'[\'created_at\']', 'favorite_count': u'[\'favorite_count\']' , 'id': u'[\'id\']', 'lang': u'[\'lang\']', 'metadata': u'[\'metadata\']', 'text': u'[\'text\']', 'user_followers_count': u'[\'user\'][\'followers_count\']'}
+	
 
 	def __init__(self):
 		self.apiHandle = Twython(CUST_KEY, CUST_SECRET)
 		
-		
-	def filter(self, tweet):
-		filteredTweet = {}
-			
-		for key in TwitterAPI.filterKeys:
-			try:
-				filteredTweet[key] = eval('tweet' + TwitterAPI.filterKeys[key])
-			except:
-				print '==tweet' + TwitterAPI.filterKeys[key]
-			
-		return filteredTweet
-		
-		
 	def search(self, keyword, language='en'):
-		apiResponse = self.apiHandle.search(q=keyword, lang=language, count=100)
+		apiResponse = self.apiHandle.search(q=keyword, lang=language, count=200)
 		#response = [self.filter(tweet) for tweet in apiResponse['statuses']]
 		
 		return apiResponse['statuses']
@@ -123,12 +125,12 @@ if __name__ == "__main__":
 	
 	fileStore.store(response)
 	
-	data = fileStore.load()
+	data = fileStore.jsonLoad()
 
 	for i in data:
 		try:
 			print i['text']
 		except:
-			pprint.pprint(i)
+			pass
 
 	print(len(data))		
